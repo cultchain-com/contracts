@@ -1,0 +1,9 @@
+{
+  "name": "hardhat-project",
+  "dependencies": {
+    "@openzeppelin/contracts": "^4.9.3",
+    "chai": "^4.3.8",
+    "mocha": "^10.2.0",
+    "web3": "^4.1.1"
+  }
+}
