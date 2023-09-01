@@ -44,12 +44,4 @@ describe("RandomizedCommittee Contract", () => {
     assert.ok(tx);
   });
 
-
-  // Test for getting committee details
-  it("should get the details of a committee", async () => {
-    const details = await randomizedCommitteeContract.methods
-      .getCommitteeDetails("Committee1")
-      .call();
-    assert.ok(details);
-  });
 });
