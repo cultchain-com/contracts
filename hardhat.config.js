@@ -1,4 +1,21 @@
-/** @type import('hardhat/config').HardhatUserConfig */
+/* hardhat.config.js */
+require("@nomiclabs/hardhat-waffle");
+privateKey = process.env.TEST_PRIVATE_KEY;
+
 module.exports = {
-  solidity: "0.8.19",
+  defaultNetwork: "hardhat",
+  networks: {
+    hardhat: {
+      chainId: 1337,
+    },
+  },
+  solidity: {
+    version: "0.8.4",
+    settings: {
+      optimizer: {
+        enabled: true,
+        runs: 200,
+      },
+    },
+  },
 };
