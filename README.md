@@ -1,11 +1,10 @@
 
 # Cult Chain Project
 
-![Cult Chain Logo](./assets/logo.png)
+Cult Chain is a decentralized platform built on the Ethereum blockchain, designed to manage charity events and randomized committees. The project aims to bring transparency, efficiency, and fairness to charitable activities and committee management.
 
 ## Table of Contents
 
-- [Introduction](#introduction)
 - [Features](#features)
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
@@ -18,10 +17,6 @@
 - [Contributing](#contributing)
 - [License](#license)
 - [Contact](#contact)
-
-## Introduction
-
-Cult Chain is a decentralized platform built on the Ethereum blockchain, designed to manage charity events and randomized committees. The project aims to bring transparency, efficiency, and fairness to charitable activities and committee management.
 
 ## Features
 
