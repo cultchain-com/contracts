@@ -15,3 +15,9 @@ async function hasRole(web3, contract, role, account) {
     .hasRole(web3.utils.keccak256(role), account)
     .call();
 }
+
+module.exports = {
+  grantRole,
+  revokeRole,
+  hasRole,
+};

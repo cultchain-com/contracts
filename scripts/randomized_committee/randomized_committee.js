@@ -45,3 +45,15 @@ async function removeValidator(contract, validatorToRemove, fromAccount) {
 async function getValidatorProfile(contract, validator) {
   return await contract.methods.getValidatorProfile(validator).call();
 }
+
+module.exports = {
+  formCommittee,
+  getMyDecisions,
+  isCommitteeMember,
+  recordDecision,
+  getValidatorCount,
+  getCommitteeDecision,
+  getValidatorProfile,
+  removeValidator,
+  addValidator,
+};
