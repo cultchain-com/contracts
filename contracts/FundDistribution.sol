@@ -109,7 +109,7 @@ contract FundDistribution is AccessControl {
 
 
     function voteOnMilestoneCompletion(uint256 requestId, uint256 milestoneIndex, bool vote) external {
-        require(hasRole(committeeContract.COMMITTEE_ROLE(), msg.sender), "Only committee members can vote");
+        require(hasRole(committeeContract.COMMITTEE_MEMBER_ROLE(), msg.sender), "Only committee members can vote");
         require(fundRequests[requestId].recipient != address(0), "Invalid request ID");
         uint256 milestoneId = fundRequests[requestId].milestones[milestoneIndex];
         require(!milestones[milestoneId].isCompleted, "Milestone already completed");

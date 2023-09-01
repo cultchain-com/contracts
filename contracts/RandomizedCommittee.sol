@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "./AccessControl.sol";
+import "./access_control/AccessControl.sol";
 
 contract RandomizedCommittee is CultChainAccessControl {
     using Counters for Counters.Counter;
@@ -65,7 +65,7 @@ contract RandomizedCommittee is CultChainAccessControl {
         uint256 tempCount = 0;
 
         for (uint256 i = 0; i < size; i++) {
-            uint256 randomIndex = uint256(keccak256(abi.encodePacked(block.prevrandao, block.timestamp, i))) % validators.length;
+            uint256 randomIndex = uint256(keccak256(abi.encodePacked(block.difficulty, block.timestamp, i))) % validators.length;
             address selectedMember = validators[randomIndex];
 
             // Ensure unique members in the committee
