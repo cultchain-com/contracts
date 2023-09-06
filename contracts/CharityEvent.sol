@@ -93,7 +93,7 @@ contract CharityEvent is ERC721Enumerable {
 
         _events[eventId].milestones[milestoneIndex].completed = true;
         _events[eventId].milestones[milestoneIndex].spendedAmount = spendedAmount;
-        uint256 committeeId = committeeContract.formCommittee(MILESTONE_COMPLETION_COMMITTEE_SIZE);
+        uint256 committeeId = committeeContract.formCommittee(MILESTONE_COMPLETION_COMMITTEE_SIZE, eventId, milestoneIndex, RandomizedCommittee.CommitteeType.Milestone);
 
         _events[eventId].milestones[milestoneIndex].committeeId = committeeId;
         _events[eventId].milestones[milestoneIndex].status = EventMilestoneStatus.Pending;
@@ -101,10 +101,11 @@ contract CharityEvent is ERC721Enumerable {
 
     function createEvent(string memory name, string memory description, uint256 targetAmount, uint256 endDate, EventCategory category) external returns (uint256) {
         // require(hasRole(PROPOSAL_CREATOR_ROLE, msg.sender), "Must have creator role to create an event");
-        uint256 committeeId = committeeContract.formCommittee(PROPOSAL_CONFIRMATION_COMMITTEE_SIZE);
 
         _eventIdCounter.increment();
         uint256 newEventId = _eventIdCounter.current();
+
+        uint256 committeeId = committeeContract.formCommittee(PROPOSAL_CONFIRMATION_COMMITTEE_SIZE, newEventId, 0, RandomizedCommittee.CommitteeType.Event);
 
         _mint(msg.sender, newEventId);
 
@@ -179,6 +180,10 @@ contract CharityEvent is ERC721Enumerable {
             eventData.status,
             eventData.committeeId
         );
+    }
+
+    function getMilestonesForEvent(uint256 eventId) external view returns (Milestone[] memory) {
+        return _events[eventId].milestones;
     }
 
     // Method to list all created events
