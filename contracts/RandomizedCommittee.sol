@@ -9,15 +9,30 @@ contract RandomizedCommittee is CultChainAccessControl {
     using Counters for Counters.Counter;
     using SafeMath for uint256;
 
+    uint256 public constant VALIDATOR_CONFIRMATION_COMMITTEE_SIZE = 3;
+
     Counters.Counter private _committeeIdCounter;
+
+    enum CommitteeType { Event, Milestone, Validator }
+
+    enum ValidationStatus { Pending, Approved, Rejected }
+
 
     address[] public validators;
 
     struct ValidatorProfile {
-        address publicKey; 
+        address applicant; 
         uint256 stakingAmount;
         uint256 reputationScore; 
         bytes32 ipfsHash;
+    }
+
+    struct ValidatorRequest {
+        address applicant;
+        uint256 stakingAmount;
+        uint256 reputationScore;
+        bytes32 ipfsHash;
+        ValidationStatus validationStatus; // To check if this request has already been processed by a committee
     }
 
     struct CommitteeMember {
@@ -43,7 +58,12 @@ contract RandomizedCommittee is CultChainAccessControl {
         uint256 totalMembers;
         uint256 yesVotes;
         uint256 noVotes;
+        uint256 committeeTypeId;
+        uint256 milestoneIndex;
+        CommitteeType committeeType;
     }
+
+    ValidatorRequest[] public validatorRequests;
 
     mapping(uint256 => Committee) public committees;
     mapping(address => ValidatorProfile) public validatorProfiles;
@@ -56,7 +76,7 @@ contract RandomizedCommittee is CultChainAccessControl {
     event FinalDecision(uint256 indexed committeeId, bool finalDecision);
 
 
-    function formCommittee(uint256 size) external onlyRole(VALIDATOR_ROLE) returns (uint256) {
+    function formCommittee(uint256 size, uint256 _committeeTypeId, uint256 _milestoneIndex, CommitteeType _committeeType) public onlyRole(VALIDATOR_ROLE) returns (uint256) {
         require(size <= validators.length, "Size exceeds number of validators");
 
         address[] memory selectedMembers = new address[](size);
@@ -102,6 +122,9 @@ contract RandomizedCommittee is CultChainAccessControl {
         newCommittee.totalMembers = size;
         newCommittee.yesVotes = 0;
         newCommittee.noVotes = 0;
+        newCommittee.committeeTypeId = _committeeTypeId;
+        newCommittee.milestoneIndex = _milestoneIndex;
+        newCommittee.committeeType = _committeeType;
 
         for (uint256 i = 0; i < size; i++) {
             newCommittee.members[selectedMembers[i]] = CommitteeMember({
@@ -117,6 +140,19 @@ contract RandomizedCommittee is CultChainAccessControl {
         emit CommitteeFormed(newCommitteeId, selectedMembers);
 
         return newCommitteeId;
+    }
+
+    function applyForValidator(bytes32 _ipfsHash) external {
+        ValidatorRequest memory newRequest = ValidatorRequest({
+            applicant: msg.sender,
+            stakingAmount: 0,
+            reputationScore: 0,
+            ipfsHash: _ipfsHash,
+            validationStatus: ValidationStatus.Pending
+        });
+
+        validatorRequests.push(newRequest);
+        formCommittee(VALIDATOR_CONFIRMATION_COMMITTEE_SIZE, validatorRequests.length, 0, CommitteeType.Validator);
     }
 
     function GetMyDecisions() external view returns (uint256[] memory) {
@@ -162,6 +198,19 @@ contract RandomizedCommittee is CultChainAccessControl {
         // Check if all committee members have voted
         if (committee.yesVotes.add(committee.noVotes) == committee.totalMembers) {
             bool finalDecision = committee.yesVotes > committee.noVotes;
+            if (committee.committeeType == CommitteeType.Validator) {
+                if (finalDecision) {
+                    // ValidatorProfile
+                    ValidatorRequest memory newApplicant = validatorRequests[committee.committeeTypeId];
+                    validatorRequests[committee.committeeTypeId].validationStatus = ValidationStatus.Approved;
+                    validatorProfiles[newApplicant.applicant].applicant = newApplicant.applicant;
+                    validatorProfiles[newApplicant.applicant].stakingAmount = newApplicant.stakingAmount;
+                    validatorProfiles[newApplicant.applicant].reputationScore = newApplicant.reputationScore;
+                    validatorProfiles[newApplicant.applicant].ipfsHash = newApplicant.ipfsHash;
+                } else {
+                    validatorRequests[committee.committeeTypeId].validationStatus = ValidationStatus.Rejected;
+                }
+            }
             emit FinalDecision(committeeId, finalDecision);
         }
     }
@@ -213,8 +262,8 @@ contract RandomizedCommittee is CultChainAccessControl {
         });
     }
 
-    function getMyPastDecisions() external view returns (uint256[] memory) {
-        uint256[] memory myCommittees = validatorCommittees[msg.sender];
+    function getUserPastDecisions(address _address) external view returns (uint256[] memory) {
+        uint256[] memory myCommittees = validatorCommittees[_address];
         uint256[] memory pastCommittees = new uint256[](0); // Initialize an empty memory array
         uint256 pastCount = 0;
 
@@ -246,8 +295,8 @@ contract RandomizedCommittee is CultChainAccessControl {
         return pastCommittees;
     }
 
-    function getMyOngoingDecisions() external view returns (uint256[] memory) {
-        uint256[] memory myCommittees = validatorCommittees[msg.sender];
+    function getUserOngoingDecisions(address _address) external view returns (uint256[] memory) {
+        uint256[] memory myCommittees = validatorCommittees[_address];
         uint256[] memory ongoingCommittees = new uint256[](0); // Initialize an empty memory array
         uint256 ongoingCount = 0;
 
@@ -355,7 +404,7 @@ contract RandomizedCommittee is CultChainAccessControl {
     }
 
     function getValidatorProfile(address validator) external view returns (ValidatorProfile memory) {
-        require(validatorProfiles[validator].publicKey != address(0), "Validator does not exist");
+        require(validatorProfiles[validator].applicant != address(0), "Validator does not exist");
         return validatorProfiles[validator];
     }
 }
