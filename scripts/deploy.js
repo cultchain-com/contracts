@@ -1,15 +1,10 @@
 const hre = require("hardhat");
 
 async function main() {
-  const [deployer] = await hre.ethers.getSigners();
-
-  console.log("Deploying contracts with the account:", deployer.address);
-
   const RandomizedCommittee = await hre.ethers.getContractFactory(
     "RandomizedCommittee"
   );
-  const randomizedCommittee =
-    await RandomizedCommittee.deploy(/* constructor arguments here */);
+  const randomizedCommittee = await RandomizedCommittee.deploy();
 
   await randomizedCommittee.deployed();
 
