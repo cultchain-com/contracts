@@ -1,6 +1,8 @@
 const Web3 = require("web3");
 const assert = require("assert");
-const web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"));
+const web3 = new Web3(
+  new Web3.providers.HttpProvider("https://rpc-mumbai.maticvigil.com/")
+);
 
 const {
   createEvent,
@@ -15,15 +17,29 @@ const {
 
 const charityEventsContract = new web3.eth.Contract(
   abi,
-  "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"
+  "0x3E2E26Cf73D7aDFaDCa14783e63840E338D04699"
 );
 
 describe("CharityEvents Contract", () => {
-  let accounts;
+  owner = web3.eth.accounts.privateKeyToAccount(
+    "8eb2e13f92e850fb487aa6ff5aa786818d440395115ba91baf34e33d6722ac24"
+  );
+  val1 = web3.eth.accounts.privateKeyToAccount(
+    "c894fb33b71ebe38a0cbd56aeebf7c6a801a0704d65859b85e6ea5a89a0d4fa2"
+  );
+  val2 = web3.eth.accounts.privateKeyToAccount(
+    "ac07f4474945693decef0d29529426ca742bc190575f114ff169c0157b8e2ebb"
+  );
+  val3 = web3.eth.accounts.privateKeyToAccount(
+    "f4b41c48318225af836ee52c036ea0b9dacf5a5e183883d118e9cb73be75bc52"
+  );
 
-  before(async () => {
-    accounts = await web3.eth.getAccounts();
-  });
+  val4 = web3.eth.accounts.privateKeyToAccount(
+    "bc0f5af46a233e092936e051fceaa8fd4a45aeeeb7eb516a4dd295622521248d"
+  );
+  let from = owner.address;
+  console.log("Owner Account:", owner);
+  before(async () => {});
 
   it("should create a charity event", async () => {
     const tx = await createEvent(
@@ -33,7 +49,7 @@ describe("CharityEvents Contract", () => {
       1000,
       1696174682,
       2,
-      accounts[0]
+      from
     );
     assert.strictEqual(tx.status, true);
   });
@@ -46,7 +62,7 @@ describe("CharityEvents Contract", () => {
       "Going to build houses",
       1696174682,
       300,
-      accounts[0]
+      from
     );
     const tx2 = await addMilestone(
       charityEventsContract,
@@ -55,7 +71,7 @@ describe("CharityEvents Contract", () => {
       "Going to build houses again",
       1696174682,
       700,
-      accounts[0]
+      from
     );
     assert.strictEqual(tx1.status, true);
     assert.strictEqual(tx2.status, true);
@@ -67,7 +83,7 @@ describe("CharityEvents Contract", () => {
       1,
       1,
       200,
-      accounts[0]
+      from
     );
     assert.strictEqual(tx.status, true);
   });
@@ -80,7 +96,7 @@ describe("CharityEvents Contract", () => {
       1000,
       1696174682,
       2,
-      accounts[0]
+      from
     );
     const eventDetails = await getEventDetails(charityEventsContract, 1);
     assert.strictEqual(eventDetails.name, "Clean Water Project");
