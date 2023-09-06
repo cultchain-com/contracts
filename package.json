@@ -3,6 +3,7 @@
   "dependencies": {
     "@nomiclabs/hardhat-waffle": "^2.0.6",
     "@openzeppelin/contracts": "^4.9.3",
+    "@truffle/hdwallet-provider": "^2.1.14",
     "chai": "^4.3.8",
     "dotenv": "^16.3.1",
     "mocha": "^10.2.0",
