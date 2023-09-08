@@ -4,36 +4,20 @@ pragma solidity ^0.8.4;
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "./access_control/AccessControl.sol";
+import "./Validator.sol";
+import "./CharityEvent.sol";
 
 contract RandomizedCommittee is CultChainAccessControl {
     using Counters for Counters.Counter;
     using SafeMath for uint256;
 
-    uint256 public constant VALIDATOR_CONFIRMATION_COMMITTEE_SIZE = 3;
-
     Counters.Counter private _committeeIdCounter;
-
     enum CommitteeType { Event, Milestone, Validator }
 
-    enum ValidationStatus { Pending, Approved, Rejected }
-
+    Validator private validatorContract;
+    CharityEvent private charityEventContract;
 
     address[] public validators;
-
-    struct ValidatorProfile {
-        address applicant; 
-        uint256 stakingAmount;
-        uint256 reputationScore; 
-        bytes32 ipfsHash;
-    }
-
-    struct ValidatorRequest {
-        address applicant;
-        uint256 stakingAmount;
-        uint256 reputationScore;
-        bytes32 ipfsHash;
-        ValidationStatus validationStatus; // To check if this request has already been processed by a committee
-    }
 
     struct CommitteeMember {
         bool exists;
@@ -63,10 +47,8 @@ contract RandomizedCommittee is CultChainAccessControl {
         CommitteeType committeeType;
     }
 
-    ValidatorRequest[] public validatorRequests;
 
     mapping(uint256 => Committee) public committees;
-    mapping(address => ValidatorProfile) public validatorProfiles;
 
     // Mapping to track which committees each validator is a part of
     mapping(address => uint256[]) public validatorCommittees;
@@ -74,6 +56,11 @@ contract RandomizedCommittee is CultChainAccessControl {
     event CommitteeFormed(uint256 indexed committeeId, address[] members);
     event DecisionRecorded(uint256 indexed committeeId, address indexed member, bool decision, string feedback);
     event FinalDecision(uint256 indexed committeeId, bool finalDecision);
+
+    function updateValidatorCharityEventAddress(address _validatorAddress, address _charityEventAddress) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        validatorContract = Validator(_validatorAddress);
+        charityEventContract = CharityEvent(_charityEventAddress);
+    }
 
 
     function formCommittee(uint256 size, uint256 _committeeTypeId, uint256 _milestoneIndex, CommitteeType _committeeType) public onlyRole(VALIDATOR_ROLE) returns (uint256) {
@@ -142,18 +129,6 @@ contract RandomizedCommittee is CultChainAccessControl {
         return newCommitteeId;
     }
 
-    function applyForValidator(bytes32 _ipfsHash) external {
-        ValidatorRequest memory newRequest = ValidatorRequest({
-            applicant: msg.sender,
-            stakingAmount: 0,
-            reputationScore: 0,
-            ipfsHash: _ipfsHash,
-            validationStatus: ValidationStatus.Pending
-        });
-
-        validatorRequests.push(newRequest);
-        formCommittee(VALIDATOR_CONFIRMATION_COMMITTEE_SIZE, validatorRequests.length, 0, CommitteeType.Validator);
-    }
 
     function GetMyDecisions() external view returns (uint256[] memory) {
         return validatorCommittees[msg.sender];
@@ -199,19 +174,17 @@ contract RandomizedCommittee is CultChainAccessControl {
         if (committee.yesVotes.add(committee.noVotes) == committee.totalMembers) {
             bool finalDecision = committee.yesVotes > committee.noVotes;
             if (committee.committeeType == CommitteeType.Validator) {
-                if (finalDecision) {
-                    // ValidatorProfile
-                    ValidatorRequest memory newApplicant = validatorRequests[committee.committeeTypeId];
-                    validatorRequests[committee.committeeTypeId].validationStatus = ValidationStatus.Approved;
-                    validatorProfiles[newApplicant.applicant].applicant = newApplicant.applicant;
-                    validatorProfiles[newApplicant.applicant].stakingAmount = newApplicant.stakingAmount;
-                    validatorProfiles[newApplicant.applicant].reputationScore = newApplicant.reputationScore;
-                    validatorProfiles[newApplicant.applicant].ipfsHash = newApplicant.ipfsHash;
-                } else {
-                    validatorRequests[committee.committeeTypeId].validationStatus = ValidationStatus.Rejected;
-                }
+                validatorContract.updateValidatorProposalDecision(committee.committeeTypeId, finalDecision);
+            } else if (committee.committeeType == CommitteeType.Event) {
+                charityEventContract.updateEventCommitteeStatus(committee.committeeTypeId, finalDecision);
+            } else {
+                charityEventContract.updateMilestoneCommitteeStatus(committee.committeeTypeId, committee.milestoneIndex, finalDecision, true);
             }
             emit FinalDecision(committeeId, finalDecision);
+        } else {
+            if (committee.committeeType == CommitteeType.Milestone) {
+                charityEventContract.updateMilestoneCommitteeStatus(committee.committeeTypeId, committee.milestoneIndex, false, false);
+            }
         }
     }
 
@@ -403,8 +376,4 @@ contract RandomizedCommittee is CultChainAccessControl {
         revokeRole(VALIDATOR_ROLE, validatorToRemove);
     }
 
-    function getValidatorProfile(address validator) external view returns (ValidatorProfile memory) {
-        require(validatorProfiles[validator].applicant != address(0), "Validator does not exist");
-        return validatorProfiles[validator];
-    }
 }
