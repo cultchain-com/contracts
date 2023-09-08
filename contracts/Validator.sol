@@ -1,111 +1,77 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.4;
+pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "./RandomizedCommittee.sol";
+
 
 contract Validator is AccessControl {
     using Counters for Counters.Counter;
     using SafeMath for uint256;
 
-    bytes32 public constant VALIDATOR_ROLE = keccak256("VALIDATOR_ROLE");
-    bytes32 public constant DAO_COMMITTEE_ROLE = keccak256("DAO_COMMITTEE_ROLE");
+    uint256 public constant VALIDATOR_CONFIRMATION_COMMITTEE_SIZE = 3;
 
-    Counters.Counter private _validatorIdCounter;
-    Counters.Counter private _proposalIdCounter;
+    enum ValidationStatus { Pending, Approved, Rejected }
 
-    address[] public validatorList;
+    ValidatorRequest[] public validatorRequests;
+
+    RandomizedCommittee private committeeContract;
+
+    mapping(address => ValidatorProfile) public validatorProfiles;
+
+    constructor(address _committeeAddress) {
+        committeeContract = RandomizedCommittee(_committeeAddress);
+    }
 
     struct ValidatorProfile {
-        address account;
-        string name;
-        bool isApproved;
+        address applicant; 
+        uint256 stakingAmount;
+        uint256 reputationScore; 
+        bytes32 ipfsHash;
     }
 
-    struct Proposal {
-        uint256 id;
-        address creator;
-        string description;
-        uint256 yesVotes;
-        uint256 noVotes;
-        mapping(address => bool) hasVoted;
+    struct ValidatorRequest {
+        address applicant;
+        uint256 stakingAmount;
+        uint256 reputationScore;
+        bytes32 ipfsHash;
+        ValidationStatus validationStatus; // To check if this request has already been processed by a committee
     }
 
-    mapping(address => ValidatorProfile) public validators;
-    mapping(uint256 => Proposal) public proposals;
-
-    event ValidatorApplied(address indexed applicant, string name);
-    event ValidatorApproved(address indexed validator);
-    event ProposalCreated(uint256 indexed proposalId, address indexed creator, string description);
-    event Voted(address indexed validator, uint256 indexed proposalId, bool vote);
-    event ValidatorAssigned(address indexed validator, uint256 indexed proposalId);
-
-    constructor() {
-        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
-    }
-
-    function applyAsValidator(string memory name) external {
-        require(!hasRole(VALIDATOR_ROLE, msg.sender), "Already a validator");
-        require(validators[msg.sender].account == address(0), "Already applied");
-
-        validators[msg.sender] = ValidatorProfile({
-            account: msg.sender,
-            name: name,
-            isApproved: false
+    function applyForValidator(bytes32 _ipfsHash) external {
+        ValidatorRequest memory newRequest = ValidatorRequest({
+            applicant: msg.sender,
+            stakingAmount: 0,
+            reputationScore: 0,
+            ipfsHash: _ipfsHash,
+            validationStatus: ValidationStatus.Pending
         });
 
-        emit ValidatorApplied(msg.sender, name);
+        validatorRequests.push(newRequest);
+        committeeContract.formCommittee(VALIDATOR_CONFIRMATION_COMMITTEE_SIZE, validatorRequests.length, 0, RandomizedCommittee.CommitteeType.Validator);
     }
 
-    function approveValidator(address validatorAddress) external onlyRole(DAO_COMMITTEE_ROLE) {
-        require(validators[validatorAddress].account != address(0), "Validator not found");
-        require(!validators[validatorAddress].isApproved, "Validator already approved");
-
-        validators[validatorAddress].isApproved = true;
-        _setupRole(VALIDATOR_ROLE, validatorAddress);
-        validatorList.push(validatorAddress);
-
-        emit ValidatorApproved(validatorAddress);
+    function getValidatorProfile(address validator) external view returns (ValidatorProfile memory) {
+        require(validatorProfiles[validator].applicant != address(0), "Validator does not exist");
+        return validatorProfiles[validator];
     }
 
-    function createProposal(string memory description) external onlyRole(VALIDATOR_ROLE) {
-        _proposalIdCounter.increment();
-        uint256 newProposalId = _proposalIdCounter.current();
-
-        Proposal storage newProposal = proposals[newProposalId];
-        newProposal.id = newProposalId;
-        newProposal.creator = msg.sender;
-        newProposal.description = description;
-        newProposal.yesVotes = 0;
-        newProposal.noVotes = 0;
-
-        emit ProposalCreated(newProposalId, msg.sender, description);
-
-        // Assign a random validator for the proposal
-        address randomValidator = getRandomValidator();
-        emit ValidatorAssigned(randomValidator, newProposalId);
-    }
-
-
-    function vote(uint256 proposalId, bool vote) external onlyRole(VALIDATOR_ROLE) {
-        require(proposals[proposalId].id == proposalId, "Proposal not found");
-        require(!proposals[proposalId].hasVoted[msg.sender], "Already voted on this proposal");
-
-        if (vote) {
-            proposals[proposalId].yesVotes = proposals[proposalId].yesVotes.add(1);
+    function updateValidatorProposalDecision(uint256 committeeTypeId, bool finalDecision) public {
+        if(finalDecision) {
+            // Update Committee Decision
+            ValidatorRequest memory newApplicant = validatorRequests[committeeTypeId];
+            validatorRequests[committeeTypeId].validationStatus = ValidationStatus.Approved;
+            // Create a new profile
+            validatorProfiles[newApplicant.applicant].applicant = newApplicant.applicant;
+            validatorProfiles[newApplicant.applicant].stakingAmount = newApplicant.stakingAmount;
+            validatorProfiles[newApplicant.applicant].reputationScore = newApplicant.reputationScore;
+            validatorProfiles[newApplicant.applicant].ipfsHash = newApplicant.ipfsHash;
         } else {
-            proposals[proposalId].noVotes = proposals[proposalId].noVotes.add(1);
+            validatorRequests[committeeTypeId].validationStatus = ValidationStatus.Rejected;
         }
-
-        proposals[proposalId].hasVoted[msg.sender] = true;
-
-        emit Voted(msg.sender, proposalId, vote);
-    }
-
-    function getRandomValidator() internal view returns (address) {
-        uint256 random = uint256(keccak256(abi.encodePacked(block.difficulty, block.timestamp, validatorList.length)));
-        return validatorList[random % validatorList.length];
+        
     }
 
 }
