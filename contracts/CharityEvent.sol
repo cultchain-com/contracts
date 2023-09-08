@@ -18,6 +18,7 @@ contract CharityEvent is ERC721Enumerable {
 
     uint256[] public allEventIds;
     enum EventMilestoneStatus { Pending, Approved, Rejected, NotStartedYet }
+
     struct Milestone {
         address creator;
         string name;
@@ -29,6 +30,7 @@ contract CharityEvent is ERC721Enumerable {
         uint256 ratingCount;
         uint256 committeeId;
         bool completed;
+        bool isFoundReleased; // Keep your eyes on this new variable;
         EventMilestoneStatus status;
     }
 
@@ -53,12 +55,13 @@ contract CharityEvent is ERC721Enumerable {
         EventCategory category;
         EventMilestoneStatus status;
         uint256 committeeId;
+        bool isFundraisingOver;
     }
 
     enum EventCategory { Health, Education, Environment, DisasterRelief, AnimalWelfare, Others }
 
-    mapping(uint256 => CharityEventData) private _events;
-    mapping(uint256 => CharityEventData) private _eventsMilestones;
+    mapping(uint256 => CharityEventData) public _events;
+    mapping(uint256 => CharityEventData) public _eventsMilestones;
 
 
     constructor(address _committeeAddress) ERC721("CharityEvent", "CEVT") {
@@ -120,35 +123,72 @@ contract CharityEvent is ERC721Enumerable {
         _events[newEventId].category = category;
         _events[newEventId].status = EventMilestoneStatus.Pending;
         _events[newEventId].committeeId = committeeId;
+        _events[newEventId].isFundraisingOver = false;
         allEventIds.push(newEventId);
 
         return newEventId;
     }
 
-    function updateEventCommitteeStatus(uint256 _eventId) external {
-        RandomizedCommittee.CommitteeDecisionDetails memory committeeDetails = committeeContract.getCommitteeDecision(_events[_eventId].committeeId);
-        if (committeeDetails.isCompleted == true) {
-            if (committeeDetails.finalDecision == true) {
-                _events[_eventId].status = EventMilestoneStatus.Approved;
-            } else {
-                _events[_eventId].status = EventMilestoneStatus.Rejected;
-            }
+    function updateEventCommitteeStatus(uint256 _eventId, bool decision) external {
+        if (decision == true) {
+            _events[_eventId].status = EventMilestoneStatus.Approved;
         } else {
-            _events[_eventId].status = EventMilestoneStatus.Pending;
+            _events[_eventId].status = EventMilestoneStatus.Rejected;
         }
-
     }
 
-    function updateMilestoneCommitteeStatus(uint256 _eventId, uint256 milestoneIndex) external {
-        RandomizedCommittee.CommitteeDecisionDetails memory committeeDetails = committeeContract.getCommitteeDecision(_events[_eventId].milestones[milestoneIndex].committeeId);
-        if (committeeDetails.isCompleted == true) {
-            if (committeeDetails.finalDecision == true) {
+    function updateMilestoneCommitteeStatus(uint256 _eventId, uint256 milestoneIndex, bool decision, bool _isComplited) external {
+        if (_isComplited == true) {
+            if (decision == true) {
                 _events[_eventId].milestones[milestoneIndex].status = EventMilestoneStatus.Approved;
             } else {
                 _events[_eventId].milestones[milestoneIndex].status = EventMilestoneStatus.Rejected;
             }
         } else {
             _events[_eventId].milestones[milestoneIndex].status = EventMilestoneStatus.Pending;
+        }
+    }
+
+    function isEventApproved(uint256 eventId) external view returns(bool){
+        if (_events[eventId].status == EventMilestoneStatus.Approved && _events[eventId].isFundraisingOver == false) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    function isEventFundraisingOver(uint256 eventId) external view returns(bool){
+        return _events[eventId].isFundraisingOver;
+    }
+
+    function possibleMilestoneAmount(uint256 eventId) external view returns(uint256 milestoneIndex, uint256 amount) {
+        require(_events[eventId].status == EventMilestoneStatus.Approved, "Event not approved.");
+        uint256 milestoneLenght = _events[eventId].milestones.length;
+
+
+        for (milestoneIndex=0; milestoneIndex < milestoneLenght; milestoneIndex++){
+            if (_events[eventId].milestones[milestoneIndex].isFoundReleased == false) {
+                if (milestoneIndex == 0) {
+                    amount = _events[eventId].milestones[milestoneIndex].targetAmount;
+                    return (milestoneIndex, amount);
+                } else {
+                    if (_events[eventId].milestones[milestoneIndex-1].completed == true && _events[eventId].milestones[milestoneIndex-1].status == EventMilestoneStatus.Approved) {
+                        amount = _events[eventId].milestones[milestoneIndex].targetAmount;
+                        return (milestoneIndex, amount);
+                    }
+                }
+            }
+        }
+    }
+
+    function retrieveEventCreator(uint256 eventId) external view returns(address) {
+        return _events[eventId].creator;
+    }
+
+    function updateCollectedAmount(uint256 eventId, uint256 collectedAmount) external {
+        _events[eventId].collectedAmount += collectedAmount;
+        if (_events[eventId].collectedAmount > _events[eventId].targetAmount) {
+            _events[eventId].isFundraisingOver = true;
         }
     }
 
@@ -209,25 +249,26 @@ contract CharityEvent is ERC721Enumerable {
             ratingCount: 0,
             committeeId: 0,
             completed: false,
+            isFoundReleased: false,
             status: EventMilestoneStatus.NotStartedYet
         });
     
         _events[eventId].milestones.push(newMilestone);
     }
 
-    function addReport(uint256 eventId, string memory reportText) external {
-        Report memory newReport = Report({
-            reporter: msg.sender,
-            text: reportText,
-            timestamp: block.timestamp
-        });
-        _events[eventId].reports.push(newReport);
-    }
+    // function addReport(uint256 eventId, string memory reportText) external {
+    //     Report memory newReport = Report({
+    //         reporter: msg.sender,
+    //         text: reportText,
+    //         timestamp: block.timestamp
+    //     });
+    //     _events[eventId].reports.push(newReport);
+    // }
 
-    function addTag(uint256 eventId, string memory tag) external {
-        require(msg.sender == _events[eventId].creator, "Only the event creator can add tags");
-        _events[eventId].tags.push(tag);
-    }
+    // function addTag(uint256 eventId, string memory tag) external {
+    //     require(msg.sender == _events[eventId].creator, "Only the event creator can add tags");
+    //     _events[eventId].tags.push(tag);
+    // }
 
     function rateEvent(uint256 eventId, uint256 rating) external {
         require(rating >= 1 && rating <= 5, "Rating should be between 1 and 5");
