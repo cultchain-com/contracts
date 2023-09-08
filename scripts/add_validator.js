@@ -384,9 +384,9 @@ const addMilestone = async (
 //   );
 // })();
 
-// (async () => {
-//   await listAllEvents();
-// })();
+(async () => {
+  await listAllEvents();
+})();
 
 // // Get CommitteeDecision
 // (async () => {
@@ -394,6 +394,6 @@ const addMilestone = async (
 // })();
 
 // Get User UpComing Committees
-(async () => {
-  await getUserOngoingDecisions(validators[0]);
-})();
+// (async () => {
+//   await getUserOngoingDecisions(validators[0]);
+// })();
