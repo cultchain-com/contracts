@@ -2,11 +2,12 @@
 pragma solidity ^0.8.4;
 
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "./RandomizedCommittee.sol";
 
 
-contract CharityEvent is ERC721Enumerable {
+contract CharityEvent is ERC721Enumerable, ERC721URIStorage {
     using Counters for Counters.Counter;
 
     uint256 public constant PROPOSAL_CONFIRMATION_COMMITTEE_SIZE = 3;
@@ -17,7 +18,14 @@ contract CharityEvent is ERC721Enumerable {
     Counters.Counter private _milestoneIdCounter;
 
     uint256[] public allEventIds;
+    address[] public _creatorsArray;
     enum EventMilestoneStatus { Pending, Approved, Rejected, NotStartedYet }
+
+    struct CreatorLeaderboard {
+        address creator;
+        uint256 totalRaised;
+        uint256 numberOfEvents;
+    }
 
     struct Milestone {
         address creator;
@@ -62,6 +70,7 @@ contract CharityEvent is ERC721Enumerable {
 
     mapping(uint256 => CharityEventData) public _events;
     mapping(uint256 => CharityEventData) public _eventsMilestones;
+    mapping(address => uint256[]) public _creatorsList;
 
 
     constructor(address _committeeAddress) ERC721("CharityEvent", "CEVT") {
@@ -102,7 +111,7 @@ contract CharityEvent is ERC721Enumerable {
         _events[eventId].milestones[milestoneIndex].status = EventMilestoneStatus.Pending;
     }
 
-    function createEvent(string memory name, string memory description, uint256 targetAmount, uint256 endDate, EventCategory category) external returns (uint256) {
+    function createEvent(string memory tokenUri, string memory name, string memory description, uint256 targetAmount, uint256 endDate, EventCategory category) external returns (uint256) {
         // require(hasRole(PROPOSAL_CREATOR_ROLE, msg.sender), "Must have creator role to create an event");
 
         _eventIdCounter.increment();
@@ -111,6 +120,7 @@ contract CharityEvent is ERC721Enumerable {
         uint256 committeeId = committeeContract.formCommittee(PROPOSAL_CONFIRMATION_COMMITTEE_SIZE, newEventId, 0, RandomizedCommittee.CommitteeType.Event);
 
         _mint(msg.sender, newEventId);
+        _setTokenURI(newEventId, tokenUri);
 
         _events[newEventId].creator = msg.sender;
         _events[newEventId].name = name;
@@ -125,6 +135,13 @@ contract CharityEvent is ERC721Enumerable {
         _events[newEventId].committeeId = committeeId;
         _events[newEventId].isFundraisingOver = false;
         allEventIds.push(newEventId);
+
+        if (_creatorsList[msg.sender].length != 0) {
+            _creatorsArray.push(msg.sender);
+            _creatorsList[msg.sender].push(newEventId);
+        } else{
+            _creatorsList[msg.sender].push(newEventId);
+        }
 
         return newEventId;
     }
@@ -281,4 +298,51 @@ contract CharityEvent is ERC721Enumerable {
         return _events[eventId].ratingSum / _events[eventId].ratingCount;
     }
 
+    function getTopCreators(uint n) public view returns (CreatorLeaderboard[] memory) {
+        
+        CreatorLeaderboard[] memory creatorDetailsArray = new CreatorLeaderboard[](_creatorsArray.length);
+
+        for (uint256 i = 0; i < _creatorsArray.length; i++) {
+            uint256 raisedAmount = 0;
+            uint256[] memory _creatorEvents = _creatorsList[_creatorsArray[i]];
+            for(uint256 j=0; j < _creatorEvents.length; j++) {
+                raisedAmount += _events[_creatorEvents[j]].collectedAmount;
+            }
+            creatorDetailsArray[i] = CreatorLeaderboard({
+                creator: _creatorsArray[i],
+                totalRaised: raisedAmount,
+                numberOfEvents: _creatorEvents.length
+            });
+        }
+        return creatorDetailsArray;
+    }
+
+    function _beforeTokenTransfer(address from, address to, uint256 tokenId, uint256 batchSize)
+        internal
+        override(ERC721, ERC721Enumerable)
+    {
+        super._beforeTokenTransfer(from, to, tokenId, batchSize);
+    }
+
+    function _burn(uint256 tokenId) internal override(ERC721, ERC721URIStorage) {
+        super._burn(tokenId);
+    }
+
+    function tokenURI(uint256 tokenId)
+        public
+        view
+        override(ERC721, ERC721URIStorage)
+        returns (string memory)
+    {
+        return super.tokenURI(tokenId);
+    }
+
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        override(ERC721Enumerable, ERC721URIStorage)
+        returns (bool)
+    {
+        return super.supportsInterface(interfaceId);
+    }
 }
