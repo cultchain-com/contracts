@@ -314,7 +314,24 @@ contract CharityEvent is ERC721Enumerable, ERC721URIStorage {
                 numberOfEvents: _creatorEvents.length
             });
         }
-        return creatorDetailsArray;
+
+        // Sort using insertion sort
+        for (uint256 i = 0; i < creatorDetailsArray.length; i++) {
+            uint256 j = i;
+            while (j > 0 && creatorDetailsArray[j].totalRaised > creatorDetailsArray[j - 1].totalRaised) {
+                // Swap
+                (creatorDetailsArray[j], creatorDetailsArray[j - 1]) = (creatorDetailsArray[j - 1], creatorDetailsArray[j]);
+                j--;
+            }
+        }
+
+        // Extract the top N validators
+        CreatorLeaderboard[] memory topNValidators = new CreatorLeaderboard[](n);
+        for (uint256 i = 0; i < n; i++) {
+            topNValidators[i] = creatorDetailsArray[i];
+        }
+
+        return topNValidators;
     }
 
     function _beforeTokenTransfer(address from, address to, uint256 tokenId, uint256 batchSize)
