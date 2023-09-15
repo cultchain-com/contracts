@@ -39,12 +39,18 @@ const EventMilestoneStatus = {
 
 const randomizedCommitteeArtifacts = require("../artifacts/contracts/RandomizedCommittee.sol/RandomizedCommittee.json");
 const charityEventsArtifacts = require("../artifacts/contracts/CharityEvent.sol/CharityEvent.json");
+const validatorArtifacts = require("../artifacts/contracts/Validator.sol/Validator.json");
+const fundraisingArtifacts = require("../artifacts/contracts/Fundraising.sol/Fundraising.json");
 
 const randomizedCommitteeABI = randomizedCommitteeArtifacts.abi;
 const charityEventsABI = charityEventsArtifacts.abi;
+const validatorABI = validatorArtifacts.abi;
+const fundraisingABI = fundraisingArtifacts.abi;
 
-const randomizedCommitteeAddress = "0x3dDEdded14c2Bf429EA0cf9F31764F9aa14a6AFc";
-const charityEventsAddress = "0x1C2622cb0b50A33b1d866065340EB7091EC6954b";
+const randomizedCommitteeAddress = "0x867bb7ACF25F443aF107F8169fAD881a53E0e010";
+const charityEventsAddress = "0x5836C5DaF08e921E5527DD09F1602B0fb872ed62";
+const validatorAddress = "0x0A3DBF9bA4dcBAC504f53B96a6Bd0F5FcaA58BB9";
+const fundraisingAddress = "0xC180267724133cB66F67EB747c2aA4d44c18f8cd";
 
 const provider = new HDWalletProvider(
   "8eb2e13f92e850fb487aa6ff5aa786818d440395115ba91baf34e33d6722ac24",
@@ -82,6 +88,18 @@ const addValidator = async (validatorAddress) => {
   }
 };
 
+const getValidatorRequestDetail = async (requestId, validatorContract) => {
+  try {
+    const validatorRequestDetails = await validatorContract.methods
+      .ValidatorRequest(requestId)
+      .call();
+    return validatorRequestDetails;
+  } catch (error) {
+    console.error("Error geting validator request details:", error);
+    throw error;
+  }
+};
+
 const getMilestoneDetail = async (eventId, charityEventsContract) => {
   try {
     const milestoneDetails = await charityEventsContract.methods
@@ -105,6 +123,11 @@ const getUserOngoingDecisions = async (userAddress) => {
     const charityEventsContract = new web3.eth.Contract(
       charityEventsABI,
       charityEventsAddress
+    );
+
+    const validatorContract = new web3.eth.Contract(
+      validatorABI,
+      validatorAddress
     );
 
     const ongoingDecisions = await randomizedCommitteeContract.methods
@@ -139,6 +162,14 @@ const getUserOngoingDecisions = async (userAddress) => {
             charityEventsContract
           );
           committeeDetail.proposalDetail = milestoneDetail;
+        } else if (
+          CommitteeType[committeeDetail.committeeType] == "Validator"
+        ) {
+          const validatorDetail = await getValidatorRequestDetail(
+            committeeDetail.committeeTypeId,
+            validatorContract
+          );
+          committeeDetail.proposalDetail = validatorDetail;
         }
 
         committeeDetail.committeeType =
@@ -214,6 +245,95 @@ const createEvent = async (
     );
   } catch (error) {
     console.error("Error creating event:", error);
+  }
+};
+
+const donateToEvent = async (eventID, message) => {
+  const accounts = await web3.eth.getAccounts();
+  const ownerAccount = accounts[0];
+  const donationAmount = web3.utils.toWei(0.0001, "ether");
+
+  const fundraisingContract = new web3.eth.Contract(
+    fundraisingABI,
+    fundraisingAddress
+  );
+
+  try {
+    await fundraisingContract.methods
+      .donateToEvent(eventID, message)
+      .send({ from: ownerAccount, value: donationAmount });
+    console.log("Donate to the eventID:", eventID);
+  } catch (error) {
+    console.log("Failed to donate:", error);
+  }
+};
+
+const requestWithdraw = async (eventId) => {
+  const accounts = await web3.eth.getAccounts();
+  const ownerAccount = accounts[0];
+  const charityEventsContract = new web3.eth.Contract(
+    charityEventsABI,
+    charityEventsAddress
+  );
+  const amount = await charityEventsContract.methods
+    .possibleMilestoneAmount(eventId)
+    .call();
+  const fundraisingContract = new web3.eth.Contract(
+    fundraisingABI,
+    fundraisingAddress
+  );
+  try {
+    await fundraisingContract.methods
+      .requestWithdraw(eventId, amount)
+      .send({ from: ownerAccount });
+  } catch (error) {
+    console.log("WIthdraw rejected:", error);
+  }
+};
+
+const getEventDonationList = async (eventId) => {
+  const fundraisingContract = new web3.eth.Contract(
+    fundraisingABI,
+    fundraisingAddress
+  );
+
+  const eventDonationList = await fundraisingContract.methods
+    .getEventDonations(eventId)
+    .call();
+  console.log("Event Donations:", eventDonationList);
+};
+
+const getDonorsLeaderboard = async (numOfTopDonors) => {
+  const fundraisingContract = new web3.eth.Contract(
+    fundraisingABI,
+    fundraisingAddress
+  );
+
+  const leaderBoard = await fundraisingContract.methods
+    .getTopDonors(numOfTopDonors)
+    .call();
+  console.log("Top Donors:", leaderBoard);
+};
+
+const applyForValidator = async (ipfsHash) => {
+  const provider = new HDWalletProvider(
+    "4d4bc6e267e83b48f9dd2b488ea530c67a1bd0e9e517fb50026befa7e3d25ef7",
+    "https://rpc-mumbai.maticvigil.com/"
+  );
+  const web3 = new Web3(provider);
+  const accounts = await web3.eth.getAccounts();
+  const ownerAccount = accounts[0];
+  const validatorContract = new web3.eth.Contract(
+    validatorABI,
+    validatorAddress
+  );
+  try {
+    await validatorContract.methods
+      .applyForValidator(ipfsHash)
+      .send({ from: ownerAccount });
+    console.log("Validator request submitted successfully.");
+  } catch (error) {
+    console.log("Couldn't register the request:", error);
   }
 };
 
@@ -384,16 +504,16 @@ const addMilestone = async (
 //   );
 // })();
 
-(async () => {
-  await listAllEvents();
-})();
+// (async () => {
+//   await listAllEvents();
+// })();
 
-// // Get CommitteeDecision
+// Get CommitteeDecision
 // (async () => {
 //   await getCommitteeDecision(1);
 // })();
 
 // Get User UpComing Committees
-// (async () => {
-//   await getUserOngoingDecisions(validators[0]);
-// })();
+(async () => {
+  await getUserOngoingDecisions(validators[0]);
+})();
