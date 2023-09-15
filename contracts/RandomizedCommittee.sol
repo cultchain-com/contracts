@@ -376,4 +376,8 @@ contract RandomizedCommittee is CultChainAccessControl {
         revokeRole(VALIDATOR_ROLE, validatorToRemove);
     }
 
+    function getAllValidatorsAddress() external view returns(address[] memory){
+        return validators;
+    }
+
 }
