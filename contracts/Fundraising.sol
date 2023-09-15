@@ -13,6 +13,17 @@ contract Fundraising {
 
     address payable public platformAddress;
 
+    struct Donor {
+        address donorAddress;
+        uint256 totalDonated;
+    }
+
+     struct ValidatorDetails {
+        address validator;
+        uint256 totalEarnings;
+        uint256 numberOfEvents;
+    }
+
     struct Donation {
         address donor;
         uint256 amount;
@@ -31,16 +42,68 @@ contract Fundraising {
         bool isConfirmedByCommittee;
     }
 
+    mapping(address => uint256[]) private _validatorsEarnings;
     mapping(uint256 => uint256) private _eventBalance;
     mapping(uint256 => Donation[]) private _eventDonations;
     mapping(address => Donation[]) private _donors;
     mapping(uint256 => WithdrawRequestHistory[]) private _eventwithdrawHistory;
 
+    Donor[] public leaderboard;
 
     constructor(address _charityEventAddress, address _randomizedCommitteeContract, address payable _platformAddress) {
         charityEventContract = CharityEvent(_charityEventAddress);
         randomizedCommitteeContract = RandomizedCommittee(_randomizedCommitteeContract);
         platformAddress = _platformAddress;
+    }
+
+    function getTopDonors(uint256 topN) external view returns (Donor[] memory) {
+        uint256 length = topN < leaderboard.length ? topN : leaderboard.length;
+        Donor[] memory topDonors = new Donor[](length);
+
+        for (uint256 i = 0; i < length; i++) {
+            topDonors[i] = leaderboard[i];
+        }
+
+        return topDonors;
+    }
+
+    function getTotalEarnings(address validator) private view returns (uint256) {
+        uint256 total = 0;
+        for (uint256 i = 0; i < _validatorsEarnings[validator].length; i++) {
+            total += _validatorsEarnings[validator][i];
+        }
+        return total;
+    }
+
+    function getValidatorsLeaderBoard(uint256 n) external view returns(ValidatorDetails[] memory) {
+        address[] memory validators = randomizedCommitteeContract.getAllValidatorsAddress();
+        ValidatorDetails[] memory validatorDetailsArray = new ValidatorDetails[](validators.length);
+
+        for (uint256 i = 0; i < validators.length; i++) {
+            validatorDetailsArray[i] = ValidatorDetails({
+                validator: validators[i],
+                totalEarnings: getTotalEarnings(validators[i]),
+                numberOfEvents: _validatorsEarnings[validators[i]].length
+            });
+        }
+
+        // Sort using insertion sort
+        for (uint256 i = 0; i < validatorDetailsArray.length; i++) {
+            uint256 j = i;
+            while (j > 0 && validatorDetailsArray[j].totalEarnings > validatorDetailsArray[j - 1].totalEarnings) {
+                // Swap
+                (validatorDetailsArray[j], validatorDetailsArray[j - 1]) = (validatorDetailsArray[j - 1], validatorDetailsArray[j]);
+                j--;
+            }
+        }
+
+        // Extract the top N validators
+        ValidatorDetails[] memory topNValidators = new ValidatorDetails[](n);
+        for (uint256 i = 0; i < n; i++) {
+            topNValidators[i] = validatorDetailsArray[i];
+        }
+
+        return topNValidators;
     }
 
     function donateToEvent(uint256 eventId, string memory message) external payable {
@@ -58,6 +121,42 @@ contract Fundraising {
         charityEventContract.updateCollectedAmount(eventId, msg.value);
         _eventDonations[eventId].push(newDonation);
         _donors[msg.sender].push(newDonation);
+        updateLeaderboard(msg.sender, msg.value);
+    }
+
+    function updateLeaderboard(address donorAddress, uint256 amount) private {
+        uint256 donorIndex = 0;
+        bool isExistingDonor = false;
+
+        // Check if donor exists in the leaderboard
+        for (uint256 i = 0; i < leaderboard.length; i++) {
+            if (leaderboard[i].donorAddress == donorAddress) {
+                donorIndex = i;
+                isExistingDonor = true;
+                break;
+            }
+        }
+
+        // If new donor, add to the leaderboard
+        if (!isExistingDonor) {
+            leaderboard.push(Donor({
+                donorAddress: donorAddress,
+                totalDonated: amount
+            }));
+        } else {
+            // Update existing donor's total donated amount
+            leaderboard[donorIndex].totalDonated += amount;
+
+            // Adjust position in the leaderboard (simple bubble sort logic for demonstration)
+            while (donorIndex > 0 && leaderboard[donorIndex].totalDonated > leaderboard[donorIndex - 1].totalDonated) {
+                // Swap with the previous donor
+                Donor memory temp = leaderboard[donorIndex];
+                leaderboard[donorIndex] = leaderboard[donorIndex - 1];
+                leaderboard[donorIndex - 1] = temp;
+
+                donorIndex--;
+            }
+        }
     }
 
     function getValidators(uint256 committeeId) public view returns(address[] memory){
@@ -81,14 +180,15 @@ contract Fundraising {
 
         address[] memory validators;
         if (milestonesIndex == 0) {
-            validators = getValidators(eventId);
+            validators = getValidators(eventId); // This must be committeeId not the eventId
         } else {
-            validators = getValidators(milestonesIndex - 1);
+            validators = getValidators(milestonesIndex - 1); // Must be the CommitteeId not the milestoneindex;
         }
 
         uint256 amountPerValidator = validatorsTotalAmount / validators.length;
         for (uint256 i = 0; i < validators.length; i++) {
             payable(validators[i]).transfer(amountPerValidator);
+            _validatorsEarnings[validators[i]].push(amountPerValidator);
         }
 
         platformAddress.transfer(platformAmount);
