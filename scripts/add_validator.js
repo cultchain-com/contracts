@@ -41,16 +41,17 @@ const randomizedCommitteeArtifacts = require("../artifacts/contracts/RandomizedC
 const charityEventsArtifacts = require("../artifacts/contracts/CharityEvent.sol/CharityEvent.json");
 const validatorArtifacts = require("../artifacts/contracts/Validator.sol/Validator.json");
 const fundraisingArtifacts = require("../artifacts/contracts/Fundraising.sol/Fundraising.json");
+const { assignNewMochaID } = require("mocha/lib/utils");
 
 const randomizedCommitteeABI = randomizedCommitteeArtifacts.abi;
 const charityEventsABI = charityEventsArtifacts.abi;
 const validatorABI = validatorArtifacts.abi;
 const fundraisingABI = fundraisingArtifacts.abi;
 
-const randomizedCommitteeAddress = "0x867bb7ACF25F443aF107F8169fAD881a53E0e010";
-const charityEventsAddress = "0x5836C5DaF08e921E5527DD09F1602B0fb872ed62";
-const validatorAddress = "0x0A3DBF9bA4dcBAC504f53B96a6Bd0F5FcaA58BB9";
-const fundraisingAddress = "0xC180267724133cB66F67EB747c2aA4d44c18f8cd";
+const randomizedCommitteeAddress = "0x16D35A1a876c118076DF98C42fa590838ccda1bF";
+const charityEventsAddress = "0x8Cd2d9938744E9d1C45c47e8c601B0d7682AFd91";
+const validatorAddress = "0x72A1CD6603e25f9C953c827491AA4bd0e3c3770d";
+const fundraisingAddress = "0xb19414B923Ef0a69aF6E237A01c1267aec406C41";
 
 const provider = new HDWalletProvider(
   "8eb2e13f92e850fb487aa6ff5aa786818d440395115ba91baf34e33d6722ac24",
@@ -64,6 +65,14 @@ let validators = [
   "0xD05f036B42e10771Ff35F184E4A4C68B9100C836",
   "0x3da2581ad70D98a45ebE7D3A51D821ddDe640432",
   "0xa25994d6F8404aFFD42Ae5918d9e2D704e06E20A",
+];
+
+let validatorsPK = [
+  "c894fb33b71ebe38a0cbd56aeebf7c6a801a0704d65859b85e6ea5a89a0d4fa2",
+  "ac07f4474945693decef0d29529426ca742bc190575f114ff169c0157b8e2ebb",
+  "f4b41c48318225af836ee52c036ea0b9dacf5a5e183883d118e9cb73be75bc52",
+  "8eb2e13f92e850fb487aa6ff5aa786818d440395115ba91baf34e33d6722ac24",
+  "bc0f5af46a233e092936e051fceaa8fd4a45aeeeb7eb516a4dd295622521248d",
 ];
 
 const addValidator = async (validatorAddress) => {
@@ -215,6 +224,7 @@ const assignValidatorRole = async (address) => {
 };
 
 const createEvent = async (
+  tokenUri,
   eventName,
   eventDescription,
   targetAmount,
@@ -230,6 +240,7 @@ const createEvent = async (
   );
 
   const category = EventCategory[categoryString];
+  console.log("Category:", category);
   if (category === undefined) {
     console.error("Invalid category:", categoryString);
     return;
@@ -237,8 +248,15 @@ const createEvent = async (
 
   try {
     const tx = await charityEventsContract.methods
-      .createEvent(eventName, eventDescription, targetAmount, endDate, category)
-      .send({ from: ownerAccount });
+      .createEvent(
+        tokenUri,
+        eventName,
+        eventDescription,
+        targetAmount,
+        endDate,
+        category
+      )
+      .send({ from: ownerAccount, gasLimit: 1000000 });
     console.log(
       "Event created successfully. Transaction hash:",
       tx.transactionHash
@@ -248,10 +266,15 @@ const createEvent = async (
   }
 };
 
-const donateToEvent = async (eventID, message) => {
-  const accounts = await web3.eth.getAccounts();
-  const ownerAccount = accounts[0];
-  const donationAmount = web3.utils.toWei(0.0001, "ether");
+const donateToEvent = async (callerPk, eventID, message, amountInEther) => {
+  const provider = new HDWalletProvider(
+    callerPk,
+    "https://rpc-mumbai.maticvigil.com/"
+  );
+  const web3 = new Web3(provider);
+  const account = web3.eth.accounts.privateKeyToAccount(callerPk);
+
+  const donationAmount = web3.utils.toWei(amountInEther, "ether");
 
   const fundraisingContract = new web3.eth.Contract(
     fundraisingABI,
@@ -261,7 +284,7 @@ const donateToEvent = async (eventID, message) => {
   try {
     await fundraisingContract.methods
       .donateToEvent(eventID, message)
-      .send({ from: ownerAccount, value: donationAmount });
+      .send({ from: account.address, value: donationAmount });
     console.log("Donate to the eventID:", eventID);
   } catch (error) {
     console.log("Failed to donate:", error);
@@ -386,8 +409,9 @@ const listAllEvents = async () => {
     charityEventsABI,
     charityEventsAddress
   );
-
+  console.log("Geting Event lists");
   const eventList = await charityEventsContract.methods.listAllEvents().call();
+  console.log("All Events:", eventList);
   const processedEvents = [];
 
   for (let eventId of eventList) {
@@ -395,6 +419,7 @@ const listAllEvents = async () => {
       eventId,
       charityEventsContract
     );
+    console.log("Event details:", eventDetails);
 
     processedEvents.push({
       ...eventDetails,
@@ -432,6 +457,49 @@ const getCommitteeDecision = async (committeeId) => {
   return committeeDecision;
 };
 
+const recordDecision = async (
+  callerPk, // caller pk accepted to enable us to initiate the web3 object and sign the tx, you must take another approach (only accept the address.)
+  committeeId,
+  decision,
+  feedback
+) => {
+  const provider = new HDWalletProvider(
+    callerPk,
+    "https://rpc-mumbai.maticvigil.com/"
+  );
+  const web3 = new Web3(provider);
+  // const accounts = await web3.eth.getAccounts();
+  // const callerAccount = accounts[0];
+
+  const randomizedCommitteeContract = new web3.eth.Contract(
+    randomizedCommitteeABI,
+    randomizedCommitteeAddress
+  );
+
+  const account = web3.eth.accounts.privateKeyToAccount(callerPk);
+
+  console.log("Retrieving isMember");
+
+  const isCommitteeMember = await randomizedCommitteeContract.methods
+    .isCommitteeMember(committeeId, account.address)
+    .call();
+
+  console.log("Is committee member?", isCommitteeMember);
+
+  if (isCommitteeMember) {
+    try {
+      const result = await randomizedCommitteeContract.methods
+        .recordDecision(committeeId, decision, feedback)
+        .send({ from: account.address });
+      console.log("Decision Recorded:", result);
+    } catch (error) {
+      console.error("Error recording decision:", error);
+    }
+  } else {
+    console.log("The address is not a committee member");
+  }
+};
+
 const addMilestone = async (
   eventId,
   milestoneName,
@@ -467,17 +535,17 @@ const addMilestone = async (
 //   }
 // })();
 
-// // Create Event
+// Create Event
 // (async () => {
-//   const eventName = "Clean Water Drive";
-//   const eventDescription = "A charity event for providing clean water.";
-//   const targetAmount = web3.utils.toWei("10", "ether");
-//   const endDate = Math.floor(Date.now() / 1000 + 86400 * 7); // 7 days from now
-//   const categoryString = "Environment";
-
-//   await assignValidatorRole(charityEventsAddress);
+//   const eventName = "Educate poor children";
+//   const eventDescription = "provide good education services for children";
+//   const targetAmount = web3.utils.toWei("0.2", "ether");
+//   const endDate = Math.floor(Date.now() / 1000 + 86400 * 10); // 7 days from now
+//   const categoryString = "Education";
+//   const tokenUri = "http://www.cultchain.com/2";
 
 //   await createEvent(
+//     tokenUri,
 //     eventName,
 //     eventDescription,
 //     targetAmount,
@@ -513,7 +581,34 @@ const addMilestone = async (
 //   await getCommitteeDecision(1);
 // })();
 
-// Get User UpComing Committees
-(async () => {
-  await getUserOngoingDecisions(validators[0]);
-})();
+// // Get User UpComing Committees
+// (async () => {
+//   await getUserOngoingDecisions(validators[0]);
+// })();
+
+// // Record User Decision
+// (async () => {
+//   await recordDecision(
+//     validatorsPK[4], // this is the private key, in the frontend section you must take it from metamask
+//     4,
+//     true,
+//     "I liked the Idea let's nail it."
+//   );
+// })();
+
+// // Get Committee Decision
+// (async () => {
+//   await getCommitteeDecision(1);
+// })();
+
+// // Donate to Event
+// (async () => {
+//   await donateToEvent(validatorsPK[4], 4, "To Educate poor child", "0.01");
+// })();
+
+// Donor Leaderboard
+// (async () => {
+//   await getDonorsLeaderboard(2);
+// })();
+
+// Creator Leaderboard
