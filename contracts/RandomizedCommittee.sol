@@ -53,9 +53,10 @@ contract RandomizedCommittee is CultChainAccessControl {
     // Mapping to track which committees each validator is a part of
     mapping(address => uint256[]) public validatorCommittees;
 
-    event CommitteeFormed(uint256 indexed committeeId, address[] members);
+    event CommitteeFormed(uint256 indexed committeeId, address[] members, uint256 _committeeTypeId, uint256 _milestoneIndex, CommitteeType _committeeType);
     event DecisionRecorded(uint256 indexed committeeId, address indexed member, bool decision, string feedback);
     event FinalDecision(uint256 indexed committeeId, bool finalDecision);
+    event ChosenAsCommitteeMember(uint256 newCommitteeId, uint256 _committeeTypeId, uint256 _milestoneIndex, CommitteeType _committeeType, address member);
 
     function updateValidatorCharityEventAddress(address _validatorAddress, address _charityEventAddress) external onlyRole(DEFAULT_ADMIN_ROLE) {
         validatorContract = Validator(_validatorAddress);
@@ -124,7 +125,11 @@ contract RandomizedCommittee is CultChainAccessControl {
             validatorCommittees[selectedMembers[i]].push(newCommitteeId);
         }
 
-        emit CommitteeFormed(newCommitteeId, selectedMembers);
+        emit CommitteeFormed(newCommitteeId, selectedMembers, _committeeTypeId, _milestoneIndex, _committeeType);
+
+        for (uint256 j = 0; j < size; j++) {
+            emit ChosenAsCommitteeMember(newCommitteeId, _committeeTypeId, _milestoneIndex, _committeeType, selectedMembers[j]);
+        }
 
         return newCommitteeId;
     }

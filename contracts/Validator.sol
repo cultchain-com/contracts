@@ -40,6 +40,9 @@ contract Validator is AccessControl {
         ValidationStatus validationStatus; // To check if this request has already been processed by a committee
     }
 
+    event AppliedAsValidator(address applicant, bytes32 _ipfsHash, uint256 committeeId, ValidationStatus status);
+    event ValidatorRequestResponded(address applicant, ValidationStatus status);
+
     function applyForValidator(bytes32 _ipfsHash) external {
         ValidatorRequest memory newRequest = ValidatorRequest({
             applicant: msg.sender,
@@ -50,7 +53,8 @@ contract Validator is AccessControl {
         });
 
         validatorRequests.push(newRequest);
-        committeeContract.formCommittee(VALIDATOR_CONFIRMATION_COMMITTEE_SIZE, validatorRequests.length, 0, RandomizedCommittee.CommitteeType.Validator);
+        uint256 committeeId = committeeContract.formCommittee(VALIDATOR_CONFIRMATION_COMMITTEE_SIZE, validatorRequests.length, 0, RandomizedCommittee.CommitteeType.Validator);
+        emit AppliedAsValidator(msg.sender, _ipfsHash, committeeId, ValidationStatus.Pending);
     }
 
     function getValidatorProfile(address validator) external view returns (ValidatorProfile memory) {
@@ -59,6 +63,7 @@ contract Validator is AccessControl {
     }
 
     function updateValidatorProposalDecision(uint256 committeeTypeId, bool finalDecision) public {
+        address aplicatnt;
         if(finalDecision) {
             // Update Committee Decision
             ValidatorRequest memory newApplicant = validatorRequests[committeeTypeId];
@@ -68,10 +73,11 @@ contract Validator is AccessControl {
             validatorProfiles[newApplicant.applicant].stakingAmount = newApplicant.stakingAmount;
             validatorProfiles[newApplicant.applicant].reputationScore = newApplicant.reputationScore;
             validatorProfiles[newApplicant.applicant].ipfsHash = newApplicant.ipfsHash;
+            aplicatnt = newApplicant.applicant;
         } else {
             validatorRequests[committeeTypeId].validationStatus = ValidationStatus.Rejected;
         }
-        
+        emit ValidatorRequestResponded(aplicatnt, validatorRequests[committeeTypeId].validationStatus);
     }
 
 }

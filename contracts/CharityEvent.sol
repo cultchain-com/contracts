@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/utils/Counters.sol";
 import "./RandomizedCommittee.sol";
 
 
-contract CharityEvent is ERC721Enumerable, ERC721URIStorage {
+contract CharityEvent is ERC721URIStorage {
     using Counters for Counters.Counter;
 
     uint256 public constant PROPOSAL_CONFIRMATION_COMMITTEE_SIZE = 3;
@@ -20,12 +20,6 @@ contract CharityEvent is ERC721Enumerable, ERC721URIStorage {
     uint256[] public allEventIds;
     address[] public _creatorsArray;
     enum EventMilestoneStatus { Pending, Approved, Rejected, NotStartedYet }
-
-    struct CreatorLeaderboard {
-        address creator;
-        uint256 totalRaised;
-        uint256 numberOfEvents;
-    }
 
     struct Milestone {
         address creator;
@@ -72,6 +66,14 @@ contract CharityEvent is ERC721Enumerable, ERC721URIStorage {
     mapping(uint256 => CharityEventData) public _eventsMilestones;
     mapping(address => uint256[]) public _creatorsList;
 
+    event ProposalCreated(uint256 eventId, address creator, string name, string description, uint256 targetAmount, uint256 collectedAmount, uint256 endDate, EventCategory category, EventMilestoneStatus status, uint256 committeeId, bool isFundraisingOver);
+    event ProposalStatusUpdated(uint256 eventId, EventMilestoneStatus status);
+    event MilestoneCreated(uint256 eventId, uint256 milestoneIndex, string milestoneName, string description, uint256 targetAmount, uint256 endDate, EventMilestoneStatus status);
+    event MilestoneStatusUpdated(uint256 eventId, uint256 milestoneIndex, bool decision, bool _iscomplited);
+    event MilestoneMarkedAsCompleted(uint256 eventId, uint256 milestoneIndex, uint256 spendedAmount);
+    event FundraisingCompleted(uint256 eventId, uint256 collectedAmount);
+    
+
 
     constructor(address _committeeAddress) ERC721("CharityEvent", "CEVT") {
         committeeContract = RandomizedCommittee(_committeeAddress);
@@ -109,6 +111,7 @@ contract CharityEvent is ERC721Enumerable, ERC721URIStorage {
 
         _events[eventId].milestones[milestoneIndex].committeeId = committeeId;
         _events[eventId].milestones[milestoneIndex].status = EventMilestoneStatus.Pending;
+        emit MilestoneMarkedAsCompleted(eventId, milestoneIndex, spendedAmount);
     }
 
     function createEvent(string memory tokenUri, string memory name, string memory description, uint256 targetAmount, uint256 endDate, EventCategory category) external returns (uint256) {
@@ -142,6 +145,7 @@ contract CharityEvent is ERC721Enumerable, ERC721URIStorage {
         } else{
             _creatorsList[msg.sender].push(newEventId);
         }
+        emit ProposalCreated(newEventId, msg.sender, name, description, targetAmount, 0, endDate, category, EventMilestoneStatus.Pending, committeeId, false);
 
         return newEventId;
     }
@@ -152,6 +156,7 @@ contract CharityEvent is ERC721Enumerable, ERC721URIStorage {
         } else {
             _events[_eventId].status = EventMilestoneStatus.Rejected;
         }
+        emit ProposalStatusUpdated(_eventId, _events[_eventId].status);
     }
 
     function updateMilestoneCommitteeStatus(uint256 _eventId, uint256 milestoneIndex, bool decision, bool _isComplited) external {
@@ -164,6 +169,7 @@ contract CharityEvent is ERC721Enumerable, ERC721URIStorage {
         } else {
             _events[_eventId].milestones[milestoneIndex].status = EventMilestoneStatus.Pending;
         }
+        emit MilestoneStatusUpdated(_eventId, milestoneIndex, decision, _isComplited);
     }
 
     function isEventApproved(uint256 eventId) external view returns(bool){
@@ -206,6 +212,7 @@ contract CharityEvent is ERC721Enumerable, ERC721URIStorage {
         _events[eventId].collectedAmount += collectedAmount;
         if (_events[eventId].collectedAmount > _events[eventId].targetAmount) {
             _events[eventId].isFundraisingOver = true;
+            emit FundraisingCompleted(eventId, collectedAmount);
         }
     }
 
@@ -269,23 +276,10 @@ contract CharityEvent is ERC721Enumerable, ERC721URIStorage {
             isFoundReleased: false,
             status: EventMilestoneStatus.NotStartedYet
         });
-    
+        uint256 milestoneIndex = _events[eventId].milestones.length;
         _events[eventId].milestones.push(newMilestone);
+        emit MilestoneCreated(eventId, milestoneIndex, milestoneName, description, targetAmount, endDate, EventMilestoneStatus.NotStartedYet);
     }
-
-    // function addReport(uint256 eventId, string memory reportText) external {
-    //     Report memory newReport = Report({
-    //         reporter: msg.sender,
-    //         text: reportText,
-    //         timestamp: block.timestamp
-    //     });
-    //     _events[eventId].reports.push(newReport);
-    // }
-
-    // function addTag(uint256 eventId, string memory tag) external {
-    //     require(msg.sender == _events[eventId].creator, "Only the event creator can add tags");
-    //     _events[eventId].tags.push(tag);
-    // }
 
     function rateEvent(uint256 eventId, uint256 rating) external {
         require(rating >= 1 && rating <= 5, "Rating should be between 1 and 5");
@@ -298,57 +292,21 @@ contract CharityEvent is ERC721Enumerable, ERC721URIStorage {
         return _events[eventId].ratingSum / _events[eventId].ratingCount;
     }
 
-    function getTopCreators(uint n) public view returns (CreatorLeaderboard[] memory) {
-        
-        CreatorLeaderboard[] memory creatorDetailsArray = new CreatorLeaderboard[](_creatorsArray.length);
+    // function _beforeTokenTransfer(address from, address to, uint256 tokenId, uint256 batchSize)
+    //     internal
+    //     override(ERC721, ERC721Enumerable)
+    // {
+    //     super._beforeTokenTransfer(from, to, tokenId, batchSize);
+    // }
 
-        for (uint256 i = 0; i < _creatorsArray.length; i++) {
-            uint256 raisedAmount = 0;
-            uint256[] memory _creatorEvents = _creatorsList[_creatorsArray[i]];
-            for(uint256 j=0; j < _creatorEvents.length; j++) {
-                raisedAmount += _events[_creatorEvents[j]].collectedAmount;
-            }
-            creatorDetailsArray[i] = CreatorLeaderboard({
-                creator: _creatorsArray[i],
-                totalRaised: raisedAmount,
-                numberOfEvents: _creatorEvents.length
-            });
-        }
-
-        // Sort using insertion sort
-        for (uint256 i = 0; i < creatorDetailsArray.length; i++) {
-            uint256 j = i;
-            while (j > 0 && creatorDetailsArray[j].totalRaised > creatorDetailsArray[j - 1].totalRaised) {
-                // Swap
-                (creatorDetailsArray[j], creatorDetailsArray[j - 1]) = (creatorDetailsArray[j - 1], creatorDetailsArray[j]);
-                j--;
-            }
-        }
-
-        // Extract the top N validators
-        CreatorLeaderboard[] memory topNValidators = new CreatorLeaderboard[](n);
-        for (uint256 i = 0; i < n; i++) {
-            topNValidators[i] = creatorDetailsArray[i];
-        }
-
-        return topNValidators;
-    }
-
-    function _beforeTokenTransfer(address from, address to, uint256 tokenId, uint256 batchSize)
-        internal
-        override(ERC721, ERC721Enumerable)
-    {
-        super._beforeTokenTransfer(from, to, tokenId, batchSize);
-    }
-
-    function _burn(uint256 tokenId) internal override(ERC721, ERC721URIStorage) {
+    function _burn(uint256 tokenId) internal override(ERC721URIStorage) {
         super._burn(tokenId);
     }
 
     function tokenURI(uint256 tokenId)
         public
         view
-        override(ERC721, ERC721URIStorage)
+        override(ERC721URIStorage)
         returns (string memory)
     {
         return super.tokenURI(tokenId);
@@ -357,7 +315,7 @@ contract CharityEvent is ERC721Enumerable, ERC721URIStorage {
     function supportsInterface(bytes4 interfaceId)
         public
         view
-        override(ERC721Enumerable, ERC721URIStorage)
+        override(ERC721URIStorage)
         returns (bool)
     {
         return super.supportsInterface(interfaceId);
