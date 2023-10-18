@@ -48,10 +48,10 @@ const charityEventsABI = charityEventsArtifacts.abi;
 const validatorABI = validatorArtifacts.abi;
 const fundraisingABI = fundraisingArtifacts.abi;
 
-const randomizedCommitteeAddress = "0x16D35A1a876c118076DF98C42fa590838ccda1bF";
-const charityEventsAddress = "0x8Cd2d9938744E9d1C45c47e8c601B0d7682AFd91";
-const validatorAddress = "0x72A1CD6603e25f9C953c827491AA4bd0e3c3770d";
-const fundraisingAddress = "0xb19414B923Ef0a69aF6E237A01c1267aec406C41";
+const randomizedCommitteeAddress = "0x3d2c8Bc8A238b4a56977cee43144594311be4005";
+const charityEventsAddress = "0x2B1bc45C1B0eCb92813B17E2F304c10F15719d0E";
+const validatorAddress = "0x3d087a20898c9658CbA6C207022Dcc06b576881a";
+const fundraisingAddress = "0xB1DCAA8d45470D17dC78BD30F3EecAB99C3d7ACf";
 
 const provider = new HDWalletProvider(
   "8eb2e13f92e850fb487aa6ff5aa786818d440395115ba91baf34e33d6722ac24",
@@ -257,10 +257,7 @@ const createEvent = async (
         category
       )
       .send({ from: ownerAccount, gasLimit: 1000000 });
-    console.log(
-      "Event created successfully. Transaction hash:",
-      tx.transactionHash
-    );
+    console.log("Event created successfully. Transaction hash:", tx);
   } catch (error) {
     console.error("Error creating event:", error);
   }
@@ -422,6 +419,7 @@ const listAllEvents = async () => {
     console.log("Event details:", eventDetails);
 
     processedEvents.push({
+      eventId,
       ...eventDetails,
       milestones,
     });
@@ -535,7 +533,7 @@ const addMilestone = async (
 //   }
 // })();
 
-// Create Event
+// // Create Event
 // (async () => {
 //   const eventName = "Educate poor children";
 //   const eventDescription = "provide good education services for children";
@@ -557,10 +555,9 @@ const addMilestone = async (
 // // Add Milestone
 // (async () => {
 //   const eventId = 1;
-//   const milestoneName = "Distribute water";
-//   const description =
-//     "Need to distribute water to poor people, for that purpose we need 3 person";
-//   const targetAmount = web3.utils.toWei("32", "ether");
+//   const milestoneName = "Buy bottles for distributing water 1";
+//   const description = "we need lot's of money for doing the distribution II";
+//   const targetAmount = web3.utils.toWei("0.01", "ether");
 //   const endDate = Math.floor(Date.now() / 1000 + 86400 * 7);
 
 //   await addMilestone(
@@ -586,15 +583,15 @@ const addMilestone = async (
 //   await getUserOngoingDecisions(validators[0]);
 // })();
 
-// // Record User Decision
-// (async () => {
-//   await recordDecision(
-//     validatorsPK[4], // this is the private key, in the frontend section you must take it from metamask
-//     4,
-//     true,
-//     "I liked the Idea let's nail it."
-//   );
-// })();
+// Record User Decision
+(async () => {
+  await recordDecision(
+    validatorsPK[1], // this is the private key, in the frontend section you must take it from metamask
+    1,
+    true,
+    "I liked the Idea let's nail it."
+  );
+})();
 
 // // Get Committee Decision
 // (async () => {
@@ -606,7 +603,7 @@ const addMilestone = async (
 //   await donateToEvent(validatorsPK[4], 4, "To Educate poor child", "0.01");
 // })();
 
-// Donor Leaderboard
+// // Donor Leaderboard
 // (async () => {
 //   await getDonorsLeaderboard(2);
 // })();
