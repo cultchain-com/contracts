@@ -583,25 +583,25 @@ const addMilestone = async (
 //   await getUserOngoingDecisions(validators[0]);
 // })();
 
-// Record User Decision
-(async () => {
-  await recordDecision(
-    validatorsPK[1], // this is the private key, in the frontend section you must take it from metamask
-    1,
-    true,
-    "I liked the Idea let's nail it."
-  );
-})();
+// // Record User Decision
+// (async () => {
+//   await recordDecision(
+//     validatorsPK[2], // this is the private key, in the frontend section you must take it from metamask
+//     1,
+//     false,
+//     "I don't like it actually"
+//   );
+// })();
 
 // // Get Committee Decision
 // (async () => {
 //   await getCommitteeDecision(1);
 // })();
 
-// // Donate to Event
-// (async () => {
-//   await donateToEvent(validatorsPK[4], 4, "To Educate poor child", "0.01");
-// })();
+// Donate to Event
+(async () => {
+  await donateToEvent(validatorsPK[4], 1, "To Educate poor child", "0.01");
+})();
 
 // // Donor Leaderboard
 // (async () => {
